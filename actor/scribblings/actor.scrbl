@@ -20,7 +20,10 @@ Abstractions''@cite{Flatt04} paper.
     method-definition ...)
   #:grammar ([maybe-option (code:line)
                            (code:line #:state state-expr)
-                           (code:line #:event event-proc-expr)]
+                           (code:line #:event event-proc-expr)
+                           (code:line #:receive? receive?-proc-expr)
+                           (code:line #:stopped? stopped?-proc-expr)
+                           (code:line #:on-stop on-stop-proc-expr)]
              [method-definition (define (method-id state-arg-id arg-id ...)
                                   method-body ...+)])
 ]{
@@ -41,7 +44,7 @@ Abstractions''@cite{Flatt04} paper.
   an actor a message will resume its thread if it has been killed. Any
   one actor is guaranteed to only be processing one message at a time.
 
-  The @racket[#:state] argument is an expression that generates the
+  The @racket[#:state] argument accepts an expression that produces the
   initial state of the actor. If not provided, the initial state of an
   actor is @racket[#f].
 
@@ -56,11 +59,11 @@ Abstractions''@cite{Flatt04} paper.
     (incr c)
   ]
 
-  The @racket[#:event] argument is a procedure that takes the current
-  state and produces an additional event that the actor should handle
-  (which could be a @racket[choice-evt]). If selected for
-  synchronization, the synchronization result of the event will be
-  used as the next state of the actor.
+  The @racket[#:event] argument accepts a procedure that takes the
+  current state and produces an additional event that the actor should
+  handle (which could be a @racket[choice-evt]). If selected for
+  synchronization, the synchronization result of the event will be used
+  as the next state of the actor.
 
   @examples[
     (require actor)
@@ -87,6 +90,67 @@ Abstractions''@cite{Flatt04} paper.
     (sleep 1)
     (get-token c)
   ]
+
+  The @racket[#:receive?] argument accepts a procedure that takes
+  a state and returns a boolean value representing whether or not
+  the actor should receive new messages. The default value of
+  @racket[receive?-proc-expr] is a procedure that ignores its argument
+  and always returns @racket[#t].
+
+  @examples[
+    (require actor)
+    (define end-sema (make-semaphore))
+    (define-actor (backpressure limit)
+      #:state 0
+      #:event (lambda (in-progress)
+                (handle-evt end-sema (λ (_) (sub1 in-progress))))
+      #:receive? (lambda (in-progress)
+                   (< in-progress limit))
+      (define (start-work in-progress)
+        (values (add1 in-progress) 'work)))
+    (define bp (backpressure 2))
+    (start-work bp)
+    (start-work bp)
+    (sync/timeout 0.5 (start-work-evt bp))
+    (semaphore-post end-sema)
+    (sync/timeout 0.5 (start-work-evt bp))
+  ]
+
+  The @racket[#:stopped?] argument accepts a procedure that takes a
+  state and returns a boolean value representing whether or not the
+  actor should stop running its internal event loop. When this procedure
+  returns @racket[#t], the actor stops receiving new messages, but
+  continues handling any in-progress events (such as the one provided by
+  @racket[#:event]) and drains any in-progress requests before finally
+  applying the @racket[on-stop-proc-expr] with the final state.
+
+  @examples[
+    (require actor)
+    (define-actor (stoppable)
+      #:state #f
+      #:on-stop (λ (_) (eprintf "actor stopped!~n"))
+      #:stopped? values
+      (define (stop _)
+        (values #t #t)))
+    (define s (stoppable))
+    (stop s)
+  ]
+
+  The @racket[#:on-stop] argument accepts a procedure that is called
+  with the final state when the actor stops running its event loop. The
+  default value of the @racket[on-stop-proc-expr] is @racket[void].
+}
+
+@section{Reference}
+
+@defproc[(actor? [v any/c]) boolean?]{
+  Returns @racket[#t] when @racket[v] is an actor.
+}
+
+@defproc[(actor-dead-evt [a actor?]) evt?]{
+  Returns an event that is ready for synchronization iff @racket[a] has
+  terminated. The synchronization result of an actor-dead event is the
+  actor-dead event itself.
 }
 
 @bibliography[

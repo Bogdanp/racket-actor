@@ -7,7 +7,9 @@
          racket/match)
 
 (provide
- define-actor)
+ define-actor
+ actor?
+ actor-dead-evt)
 
 (begin-for-syntax
   (define-syntax-class method-definition
@@ -20,7 +22,10 @@
   (syntax-parse stx
     [(_ (actor-id:id arg-id:id ...)
         {~alt {~optional {~seq #:state state-expr}}
-              {~optional {~seq #:event event-proc}}} ...
+              {~optional {~seq #:event event-proc}}
+              {~optional {~seq #:receive? receive-proc}}
+              {~optional {~seq #:stopped? stopped-proc}}
+              {~optional {~seq #:on-stop on-stop-proc}}} ...
         method:method-definition ...)
      #:with st (format-id stx "st")
      #:with (method-evt-id ...)
@@ -29,9 +34,12 @@
      #'(begin
          (define (actor-id arg-id ...)
            (make-actor
+            #:state (lambda () {~? state-expr #f})
+            #:event {~? event-proc (lambda (_) never-evt)}
+            #:receive? {~? receive-proc (lambda (_) #t)}
+            #:stopped? {~? stopped-proc (lambda (_) #f)}
+            #:on-stop {~? on-stop-proc void}
             'actor-id
-            (lambda () {~? state-expr #f})
-            {~? event-proc (lambda (_) never-evt)}
             (lambda (st id args)
               (case id
                 [(method.id)
@@ -51,57 +59,71 @@
 (struct actor-state (reqs state))
 (define-struct-lenses actor-state)
 
-(define (make-actor who make-state make-event method-proc)
+(define (make-actor who method-proc
+                    #:state make-state
+                    #:event make-event
+                    #:on-stop on-stop-proc
+                    #:stopped? stopped?-proc
+                    #:receive? receive?-proc)
   (define ch (make-channel))
   (define thd
     (thread/suspend-to-kill
      (lambda ()
        (let loop ([st (actor-state null (make-state))])
-         (loop
-          (with-handlers ([exn:fail?
-                           (lambda (e)
-                             (begin0 st
-                               ((error-display-handler)
-                                (format "~a: ~a" who (exn-message e))
-                                e)))])
-            (apply
-             sync
-             (handle-evt
-              ch
-              (match-lambda
-                [`(,id ,res-ch ,nack-evt . ,args)
-                 (define-values (next-st res)
-                   (with-handlers ([exn:fail?
-                                    (lambda (e)
-                                      (values (actor-state-state st) e))])
-                     (method-proc
-                      (actor-state-state st)
-                      id args)))
-                 (&actor-state-state
-                  (lens-update
-                   &actor-state-reqs st
-                   (λ (reqs) (cons (req res res-ch nack-evt) reqs)))
-                  next-st)]
-                [message
-                 (begin0 st
-                   (log-actor-error "~a: invalid message ~.s" who message))]))
-             (handle-evt
-              (make-event (actor-state-state st))
-              (lambda (next-st)
-                (&actor-state-state st next-st)))
-             (append
-              (for/list ([r (in-list (actor-state-reqs st))])
+         (define impl-st
+           (actor-state-state st))
+         (define stopped?
+           (stopped?-proc impl-st))
+         (define receive?
+           (and (not stopped?)
+                (receive?-proc impl-st)))
+         (cond
+           [(and stopped? (null? (actor-state-reqs st)))
+            (on-stop-proc impl-st)]
+           [else
+            (loop
+             (with-handlers ([exn:fail?
+                              (lambda (e)
+                                (begin0 st
+                                  ((error-display-handler)
+                                   (format "~a: ~a" who (exn-message e))
+                                   e)))])
+               (apply
+                sync
                 (handle-evt
-                 (req-nack-evt r)
-                 (lambda (_)
-                   (lens-update &actor-state-reqs st (λ (reqs) (remq r reqs))))))
-              (for/list ([r (in-list (actor-state-reqs st))])
+                 (if receive? ch never-evt)
+                 (match-lambda
+                   [`(,id ,res-ch ,nack-evt . ,args)
+                    (define-values (next-st res)
+                      (with-handlers ([exn:fail?
+                                       (lambda (e)
+                                         (values impl-st e))])
+                        (method-proc impl-st id args)))
+                    (&actor-state-state
+                     (lens-update
+                      &actor-state-reqs st
+                      (λ (reqs) (cons (req res res-ch nack-evt) reqs)))
+                     next-st)]
+                   [message
+                    (begin0 st
+                      (log-actor-error "~a: invalid message ~.s" who message))]))
                 (handle-evt
-                 (channel-put-evt
-                  (req-res-ch r)
-                  (req-res r))
-                 (lambda (_)
-                   (lens-update &actor-state-reqs st (λ (reqs) (remq r reqs))))))))))))))
+                 (make-event impl-st)
+                 (lambda (next-st)
+                   (&actor-state-state st next-st)))
+                (append
+                 (for/list ([r (in-list (actor-state-reqs st))])
+                   (handle-evt
+                    (req-nack-evt r)
+                    (lambda (_)
+                      (lens-update &actor-state-reqs st (λ (reqs) (remq r reqs))))))
+                 (for/list ([r (in-list (actor-state-reqs st))])
+                   (handle-evt
+                    (channel-put-evt
+                     (req-res-ch r)
+                     (req-res r))
+                    (lambda (_)
+                      (lens-update &actor-state-reqs st (λ (reqs) (remq r reqs))))))))))])))))
   (actor ch thd))
 
 (define (actor-evt a id . args)
@@ -110,10 +132,14 @@
     (lambda (nack-evt)
       (match-define (actor ch thd) a)
       (define res-ch (make-channel))
-      (begin0 res-ch
-        (thread-resume thd (current-thread))
-        (channel-put ch (list* id res-ch nack-evt args)))))
+      (thread-resume thd (current-thread))
+      (replace-evt
+       (channel-put-evt ch (list* id res-ch nack-evt args))
+       (lambda (_) res-ch))))
    (lambda (res-or-exn)
      (begin0 res-or-exn
        (when (exn:fail? res-or-exn)
          (raise res-or-exn))))))
+
+(define (actor-dead-evt a)
+  (thread-dead-evt (actor-thd a)))
