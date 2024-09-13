@@ -108,7 +108,7 @@
                     (begin0 actor-st
                       (log-actor-error "~a: invalid message ~.s" who message))]))
                 (handle-evt
-                 (make-event st)
+                 (if stopped? never-evt (make-event st))
                  (lambda (next-st)
                    (&actor-state-state actor-st next-st)))
                 (append

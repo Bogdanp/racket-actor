@@ -124,10 +124,9 @@ Abstractions''@cite{Flatt04} paper.
   The @racket[#:stopped?] argument accepts a procedure that takes a
   state and returns a boolean value representing whether or not the
   actor should stop running its internal event loop. When this procedure
-  returns @racket[#t], the actor stops receiving new messages, but
-  continues handling any in-progress events (such as the one provided by
-  @racket[#:event]) and drains any in-progress requests before finally
-  applying the @racket[on-stop-proc-expr] with the final state.
+  returns @racket[#t], the actor stops receiving new messages and
+  drains any pending responses to senders before finally applying the
+  @racket[on-stop-proc-expr] with the final state.
 
   @examples[
     #:eval ev
