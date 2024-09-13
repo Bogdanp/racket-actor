@@ -13,6 +13,8 @@ This package provides a macro and runtime support for writing kill-safe
 actors using the techniques described in the ``Kill-Safe Synchronization
 Abstractions''@cite{Flatt04} paper.
 
+@(define ev (make-base-eval '(begin (require actor))))
+
 @defform[
   #:literals (define)
   (define-actor (id arg ...)
@@ -49,7 +51,7 @@ Abstractions''@cite{Flatt04} paper.
   actor is @racket[#f].
 
   @examples[
-    (require actor)
+    #:eval ev
     (define-actor (counter start)
       #:state start
       (define (incr state)
@@ -66,7 +68,7 @@ Abstractions''@cite{Flatt04} paper.
   as the next state of the actor.
 
   @examples[
-    (require actor)
+    #:eval ev
     (define (make-token) (gensym))
     (define (make-deadline) (+ (current-inexact-milliseconds) 1000))
     (struct state (token deadline))
@@ -98,21 +100,24 @@ Abstractions''@cite{Flatt04} paper.
   and always returns @racket[#t].
 
   @examples[
-    (require actor)
-    (define end-sema (make-semaphore))
+    #:eval ev
+    (define end-work-sema (make-semaphore))
     (define-actor (backpressure limit)
       #:state 0
       #:event (lambda (in-progress)
-                (handle-evt end-sema (λ (_) (sub1 in-progress))))
+                (handle-evt
+                 end-work-sema
+                 (lambda (_)
+                   (sub1 in-progress))))
       #:receive? (lambda (in-progress)
                    (< in-progress limit))
       (define (start-work in-progress)
-        (values (add1 in-progress) 'work)))
+        (values (add1 in-progress) #t)))
     (define bp (backpressure 2))
     (start-work bp)
     (start-work bp)
     (sync/timeout 0.5 (start-work-evt bp))
-    (semaphore-post end-sema)
+    (semaphore-post end-work-sema)
     (sync/timeout 0.5 (start-work-evt bp))
   ]
 
@@ -125,7 +130,7 @@ Abstractions''@cite{Flatt04} paper.
   applying the @racket[on-stop-proc-expr] with the final state.
 
   @examples[
-    (require actor)
+    #:eval ev
     (define-actor (stoppable)
       #:state #f
       #:on-stop (λ (_) (eprintf "actor stopped!~n"))
