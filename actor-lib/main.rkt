@@ -69,22 +69,22 @@
   (define thd
     (thread/suspend-to-kill
      (lambda ()
-       (let loop ([st (actor-state null (make-state))])
-         (define impl-st
-           (actor-state-state st))
+       (let loop ([actor-st (actor-state null (make-state))])
+         (define st
+           (actor-state-state actor-st))
          (define stopped?
-           (stopped?-proc impl-st))
+           (stopped?-proc st))
          (define receive?
            (and (not stopped?)
-                (receive?-proc impl-st)))
+                (receive?-proc st)))
          (cond
-           [(and stopped? (null? (actor-state-reqs st)))
-            (on-stop-proc impl-st)]
+           [(and stopped? (null? (actor-state-reqs actor-st)))
+            (on-stop-proc st)]
            [else
             (loop
              (with-handlers ([exn:fail?
                               (lambda (e)
-                                (begin0 st
+                                (begin0 actor-st
                                   ((error-display-handler)
                                    (format "~a: ~a" who (exn-message e))
                                    e)))])
@@ -97,33 +97,33 @@
                     (define-values (next-st res)
                       (with-handlers ([exn:fail?
                                        (lambda (e)
-                                         (values impl-st e))])
-                        (method-proc impl-st id args)))
+                                         (values st e))])
+                        (method-proc st id args)))
                     (&actor-state-state
                      (lens-update
-                      &actor-state-reqs st
+                      &actor-state-reqs actor-st
                       (λ (reqs) (cons (req res res-ch nack-evt) reqs)))
                      next-st)]
                    [message
-                    (begin0 st
+                    (begin0 actor-st
                       (log-actor-error "~a: invalid message ~.s" who message))]))
                 (handle-evt
-                 (make-event impl-st)
+                 (make-event st)
                  (lambda (next-st)
-                   (&actor-state-state st next-st)))
+                   (&actor-state-state actor-st next-st)))
                 (append
-                 (for/list ([r (in-list (actor-state-reqs st))])
+                 (for/list ([r (in-list (actor-state-reqs actor-st))])
                    (handle-evt
                     (req-nack-evt r)
                     (lambda (_)
-                      (lens-update &actor-state-reqs st (λ (reqs) (remq r reqs))))))
-                 (for/list ([r (in-list (actor-state-reqs st))])
+                      (lens-update &actor-state-reqs actor-st (λ (reqs) (remq r reqs))))))
+                 (for/list ([r (in-list (actor-state-reqs actor-st))])
                    (handle-evt
                     (channel-put-evt
                      (req-res-ch r)
                      (req-res r))
                     (lambda (_)
-                      (lens-update &actor-state-reqs st (λ (reqs) (remq r reqs))))))))))])))))
+                      (lens-update &actor-state-reqs actor-st (λ (reqs) (remq r reqs))))))))))])))))
   (actor ch thd))
 
 (define (actor-evt a id . args)
