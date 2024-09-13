@@ -28,6 +28,11 @@ Abstractions''@cite{Flatt04} paper.
                            (code:line #:on-stop on-stop-proc-expr)]
              [method-definition (define (method-id state-arg-id arg-id ...)
                                   method-body ...+)])
+  #:contracts ([state-expr state]
+               [event-proc-expr (-> state (evt/c state))]
+               [receive?-proc-expr (-> state boolean?)]
+               [stopped?-proc-expr (-> state boolean?)]
+               [on-stop-proc-expr (-> state any)])
 ]{
 
   Defines a procedure named @racket[id] that returns an instance of an
