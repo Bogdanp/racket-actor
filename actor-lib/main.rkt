@@ -52,7 +52,7 @@
          (define (method.id a method.arg-id ...)
            (sync (method-evt-id a method.arg-id ...))) ...)]))
 
-(struct actor (ch thd))
+(struct actor (who ch thd))
 (struct req (res res-ch nack-evt))
 
 (define-logger actor)
@@ -124,18 +124,22 @@
                      (req-res r))
                     (lambda (_)
                       (lens-update &actor-state-reqs actor-st (λ (reqs) (remq r reqs))))))))))])))))
-  (actor ch thd))
+  (actor who ch thd))
 
 (define (actor-evt a id . args)
   (wrap-evt
    (nack-guard-evt
     (lambda (nack-evt)
-      (match-define (actor ch thd) a)
+      (match-define (actor who ch thd) a)
       (define res-ch (make-channel))
       (thread-resume thd (current-thread))
-      (replace-evt
-       (channel-put-evt ch (list* id res-ch nack-evt args))
-       (lambda (_) res-ch))))
+      (choice-evt
+       (handle-evt
+        (thread-dead-evt thd)
+        (lambda (_) (error who "stopped")))
+       (replace-evt
+        (channel-put-evt ch (list* id res-ch nack-evt args))
+        (lambda (_) res-ch)))))
    (lambda (res-or-exn)
      (begin0 res-or-exn
        (when (exn:fail? res-or-exn)

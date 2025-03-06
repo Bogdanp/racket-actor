@@ -81,7 +81,10 @@
      (check-false stopped?)
      (stop s)
      (sync (actor-dead-evt s))
-     (check-true stopped?))))
+     (check-true stopped?)
+     (check-exn
+      #rx"stoppable: stopped"
+      (λ () (stop s))))))
 
 (module+ test
   (require rackunit/text-ui)
