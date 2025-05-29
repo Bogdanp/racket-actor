@@ -125,7 +125,8 @@
                       (req-res r))
                      (lambda (_)
                        (lens-update &actor-state-reqs actor-st (λ (reqs) (remq r reqs))))))))))])))
-      who)))
+      (string->symbol
+       (format "actor:~a" who)))))
   (actor who ch thd))
 
 (define (actor-evt a id . args)
