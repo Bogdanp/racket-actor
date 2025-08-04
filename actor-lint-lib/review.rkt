@@ -62,6 +62,10 @@
              {~alt _private:private-definition method:method-definition} ...
              {~do (pop-scope)})
            #:do [(track-binding #'actor-id #:check-usages? #t)
+                 (track-binding
+                  #'actor-id "~a?"
+                  #:check-usages? #f
+                  #:related-to #'actor-id)
                  (for* ([method-id-stx (in-list (syntax-e #'(method.id ...)))]
                         [method-suffix (in-list '("" "-evt"))])
                    (track-binding
