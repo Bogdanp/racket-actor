@@ -69,10 +69,8 @@
    (test-case "on-stop"
      (define stopped? #f)
      (define-actor (stoppable)
-
        #:state #f
-       #:on-stop (lambda (_)
-                   (set! stopped? #t))
+       #:on-stop (λ (_) (set! stopped? #t))
        #:stopped? values
        (define (stop _)
          (values #t #t)))
@@ -84,7 +82,27 @@
      (check-true stopped?)
      (check-exn
       #rx"stoppable: stopped"
-      (λ () (stop s))))))
+      (λ () (stop s))))
+
+   (test-case "private"
+     (define-actor (pinger)
+       (define/private (~shout s)
+         (string-upcase s))
+       (define/private (~exclaim s)
+         (format "~a!!!" (~shout s)))
+       (define (ping st s)
+         (values st (~exclaim s))))
+     (define p (pinger))
+     (check-equal? (ping p "hi") "HI!!!"))
+
+   (test-case "method calling"
+     (define-actor (countdown n)
+       #:state n
+       (define (step st)
+         (if (zero? st)
+             (values st 0)
+             (step (sub1 st)))))
+     (check-equal? (step (countdown 5)) 0))))
 
 (module+ test
   (require rackunit/text-ui)

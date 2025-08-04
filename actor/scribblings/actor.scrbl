@@ -16,16 +16,20 @@ Abstractions''@cite{Flatt04} paper.
 @(define ev (make-base-eval '(begin (require actor))))
 
 @defform[
-  #:literals (define)
+  #:literals (define define/private)
   (define-actor (id arg ...)
     maybe-option ...
-    method-definition ...)
+    definition ...)
   #:grammar ([maybe-option (code:line)
                            (code:line #:state state-expr)
                            (code:line #:event event-proc-expr)
                            (code:line #:receive? receive?-proc-expr)
                            (code:line #:stopped? stopped?-proc-expr)
                            (code:line #:on-stop on-stop-proc-expr)]
+             [definition (code:line private-definition)
+                         (code:line method-definition)]
+             [private-definition (code:line (define/private id expr))
+                                 (code:line (define/private (id . args) body ...+))]
              [method-definition (define (method-id state-arg-id arg-id ...)
                                   method-body ...+)])
   #:contracts ([state-expr state]
@@ -48,8 +52,9 @@ Abstractions''@cite{Flatt04} paper.
   state and a value to return to the sender.
 
   Each actor runs in its own @racket[thread/suspend-to-kill] and sending
-  an actor a message will resume its thread if it has been killed. Any
-  one actor is guaranteed to only be processing one message at a time.
+  an actor a message will resume its thread if it has been killed. An
+  instance of an actor is guaranteed to only be processing one message
+  at a time.
 
   The @racket[#:state] argument accepts an expression that produces the
   initial state of the actor. If not provided, the initial state of an
@@ -148,6 +153,17 @@ Abstractions''@cite{Flatt04} paper.
   The @racket[#:on-stop] argument accepts a procedure that is called
   with the final state when the actor stops running its event loop. The
   default value of the @racket[on-stop-proc-expr] is @racket[void].
+}
+
+@defform[
+  #:literals (define/private)
+  (define/private (id . args)
+    body ...+)
+]{
+  Defines a private procedure that can be used from within the body of
+  an actor.
+
+  @history[#:added "0.2"]
 }
 
 @section{Reference}
