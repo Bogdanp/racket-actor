@@ -18,15 +18,34 @@
   (for ([arg-id-stx (in-list (syntax-e stx))])
     (track-binding #:check-usages? #t arg-id-stx)))
 
+(define-syntax-class private-definition
+  #:datum-literals (define/private)
+  (pattern
+   (define/private id:id ~! _expr:expression)
+   #:do [(track-binding #'id)])
+  (pattern
+   (define/private ~!
+     (id:id
+      {~do (track-binding #'id)
+           (push-scope)}
+      arg-id:id ...
+      {~do (track-args #'(arg-id ...))})
+     {~do (push-scope)}
+     _body:expression ...+
+     {~do (pop-scope)
+          (pop-scope)})))
+
 (define-syntax-class method-definition
   #:datum-literals (define)
-  (pattern (define (id:id {~do (push-scope)}
-                          state-arg-id:id arg-id:id ...)
-             {~do (track-args #'(state-arg-id arg-id ...))
-                  (push-scope)}
-             body:expression ...+
-             {~do (pop-scope)
-                  (pop-scope)})))
+  (pattern
+   (define ~!
+     (id:id {~do (push-scope)} state-arg-id:id arg-id:id ...)
+     {~do (track-binding #'id #:check-usages? #f)
+          (track-args #'(state-arg-id arg-id ...))
+          (push-scope)}
+     body:expression ...+
+     {~do (pop-scope)
+          (pop-scope)})))
 
 (define-syntax-class actor-definition
   #:datum-literals (define-actor :)
@@ -35,12 +54,12 @@
              {~do (push-scope)}
              (actor-id:id arg-id:id ...)
              {~do (track-args #'(arg-id ...))}
-             {~alt {~optional {~seq #:state state-expr:expression}}
-                   {~optional {~seq #:event event-proc:expression}}
-                   {~optional {~seq #:receive? receive-proc:expression}}
-                   {~optional {~seq #:stopped? stopped-proc:expression}}
-                   {~optional {~seq #:on-stop on-stop-proc:expression}}} ...
-             method:method-definition ...
+             {~alt {~optional {~seq #:state _state-expr:expression}}
+                   {~optional {~seq #:event _event-proc:expression}}
+                   {~optional {~seq #:receive? _receive-proc:expression}}
+                   {~optional {~seq #:stopped? _stopped-proc:expression}}
+                   {~optional {~seq #:on-stop _on-stop-proc:expression}}} ...
+             {~alt _private:private-definition method:method-definition} ...
              {~do (pop-scope)})
            #:do [(track-binding #'actor-id #:check-usages? #t)
                  (for* ([method-id-stx (in-list (syntax-e #'(method.id ...)))]
