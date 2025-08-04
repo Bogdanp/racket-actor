@@ -48,7 +48,7 @@
           (pop-scope)})))
 
 (define-syntax-class actor-definition
-  #:datum-literals (define-actor :)
+  #:datum-literals (define-actor)
   (pattern (define-actor
              ~!
              {~do (push-scope)}
