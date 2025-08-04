@@ -44,11 +44,15 @@
               {~optional {~seq #:on-stop on-stop-proc}}} ...
         {~alt private:private-definition
               method:method-definition} ...)
+     #:with actor-id? (format-id stx "~a?" #'actor-id)
      #:with st (format-id stx "st")
      #:with (method-evt-id ...)
      (for/list ([method-id-stx (in-list (syntax-e #'(method.id ...)))])
        (format-id method-id-stx "~a-evt" method-id-stx))
      #'(begin
+         (define (actor-id? v)
+           (and (actor? v)
+                (eq? actor-id (actor-ctor v))))
          (define (actor-id arg-id ...)
            (letrec ([private.id private.expr]
                     ...
@@ -60,7 +64,7 @@
               #:receive? {~? receive-proc (lambda (_) #t)}
               #:stopped? {~? stopped-proc (lambda (_) #f)}
               #:on-stop {~? on-stop-proc void}
-              'actor-id
+              'actor-id actor-id
               (lambda (st id args)
                 (case id
                   [(method.id)
@@ -70,19 +74,20 @@
          (define (method.id a . method.args)
            (sync (method-evt-id a . method.args))) ...)]))
 
-(struct actor (who ch thd))
+(struct actor (who ctor ch thd))
 (struct req (res res-ch nack-evt))
 
 (define-logger actor)
 (struct actor-state (reqs state))
 (define-struct-lenses actor-state)
 
-(define (make-actor who method-proc
-                    #:state make-state
-                    #:event make-event
-                    #:on-stop on-stop-proc
-                    #:stopped? stopped?-proc
-                    #:receive? receive?-proc)
+(define (make-actor
+         #:state make-state
+         #:event make-event
+         #:on-stop on-stop-proc
+         #:stopped? stopped?-proc
+         #:receive? receive?-proc
+         who ctor method-proc)
   (define ch (make-channel))
   (define thd
     (thread/suspend-to-kill
@@ -149,13 +154,13 @@
                            (remq r reqs)))))))))))))
       (string->symbol
        (format "actor:~a" who)))))
-  (actor who ch thd))
+  (actor who ctor ch thd))
 
 (define (actor-evt a id . args)
   (wrap-evt
    (nack-guard-evt
     (lambda (nack-evt)
-      (match-define (actor who ch thd) a)
+      (match-define (actor who _ ch thd) a)
       (define res-ch (make-channel))
       (thread-resume thd (current-thread))
       (choice-evt

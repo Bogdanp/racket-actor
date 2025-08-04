@@ -40,21 +40,23 @@ Abstractions''@cite{Flatt04} paper.
 ]{
 
   Defines a procedure named @racket[id] that returns an instance of an
-  actor when applied. For each @racket[method-definition], a procedure
-  named @racket[method-id-evt] is defined that sends the actor a message
+  actor when applied. For each @racket[method-definition], defines a
+  procedure named @racket[method-id-evt] that sends the actor a message
   to be handled by the body of that method and returns a synchronizable
-  event representing the result of executing the body. Additionally, a
-  @racket[method-id] procedure is defined that composes @racket[sync]
-  with its associated @racket[method-id-evt] procedure, for convenience.
+  event representing the result of executing the body. Additionally,
+  for each method, defines a @racket[method-id] procedure that composes
+  @racket[sync] with its associated @racket[method-id-evt] procedure,
+  for convenience. Finally, defines a procedure named @racket[id?] that
+  recognizes instances of the actor.
 
   Each method takes as a first argument the current state, followed by
   any arguments sent by the sender, and must return two values: the next
   state and a value to return to the sender.
 
   Each actor runs in its own @racket[thread/suspend-to-kill] and sending
-  an actor a message will resume its thread if it has been killed. An
-  instance of an actor is guaranteed to only be processing one message
-  at a time.
+  an actor a message will resume its thread, under the custody of the
+  calling thread, if it has been killed. An instance of an actor is
+  guaranteed to only be processing one message at a time.
 
   The @racket[#:state] argument accepts an expression that produces the
   initial state of the actor. If not provided, the initial state of an
@@ -67,6 +69,7 @@ Abstractions''@cite{Flatt04} paper.
       (define (incr state)
         (values (add1 state) state)))
     (define c (counter 5))
+    (counter? c)
     (sync (incr-evt c))
     (incr c)
   ]
@@ -153,17 +156,17 @@ Abstractions''@cite{Flatt04} paper.
   The @racket[#:on-stop] argument accepts a procedure that is called
   with the final state when the actor stops running its event loop. The
   default value of the @racket[on-stop-proc-expr] is @racket[void].
-}
 
-@defform[
-  #:literals (define/private)
-  (define/private (id . args)
-    body ...+)
-]{
-  Defines a private procedure that can be used from within the body of
-  an actor.
+  Within an @racket[define-actor] form, @racket[define/private] may be
+  used to define private bindings and procedures that can be used from
+  within the body of an actor. Methods may call one-another. Calling a
+  method from another method is a regular procedure call that does not
+  go through the synchronization mechanism.
 
-  @history[#:added "0.2"]
+  @history[
+    #:changed "0.2" @elem{Added support for predicate procedures.}
+    #:changed "0.2" @elem{Added support calling methods from other methods.}
+  ]
 }
 
 @section{Reference}
@@ -176,6 +179,17 @@ Abstractions''@cite{Flatt04} paper.
   Returns an event that is ready for synchronization iff @racket[a] has
   terminated. The synchronization result of an actor-dead event is the
   actor-dead event itself.
+}
+
+@defform[
+  #:literals (define/private)
+  (define/private (id . args)
+    body ...+)
+]{
+  Defines a private procedure that can be used from within the body of
+  an actor.
+
+  @history[#:added "0.2"]
 }
 
 @bibliography[
