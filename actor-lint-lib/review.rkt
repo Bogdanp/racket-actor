@@ -39,10 +39,12 @@
   #:datum-literals (define)
   (pattern
    (define ~!
-     (id:id {~do (push-scope)} state-arg-id:id arg-id:id ...)
-     {~do (track-binding #'id #:check-usages? #f)
-          (track-args #'(state-arg-id arg-id ...))
-          (push-scope)}
+     (id:id
+      {~do (track-binding #'id #:check-usages? #f)
+           (push-scope)}
+      state-arg-id:id arg-id:id ...
+      {~do (track-args #'(state-arg-id arg-id ...))})
+     {~do (push-scope)}
      body:expression ...+
      {~do (pop-scope)
           (pop-scope)})))
