@@ -86,14 +86,15 @@
 
    (test-case "private"
      (define-actor (pinger)
+       (define/private exc #\!)
        (define/private (~shout s)
          (string-upcase s))
        (define/private (~exclaim s)
-         (format "~a!!!" (~shout s)))
+         (format "~a~a" (~shout s) exc))
        (define (ping st s)
          (values st (~exclaim s))))
      (define p (pinger))
-     (check-equal? (ping p "hi") "HI!!!"))
+     (check-equal? (ping p "hi") "HI!"))
 
    (test-case "method calling"
      (define-actor (countdown n)
