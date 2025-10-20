@@ -9,9 +9,11 @@
 @author[(author+email "Bogdan Popa" "bogdan@defn.io")]
 @defmodule[actor]
 
-This package provides a macro and runtime support for writing kill-safe
-actors using the techniques described in the ``Kill-Safe Synchronization
-Abstractions''@cite{Flatt04} paper.
+This package provides a macro and runtime support for writing
+kill-safe actors backed by the techniques described in the ``Kill-Safe
+Synchronization Abstractions''@cite{Flatt04} paper.
+
+@section{Reference}
 
 @(define ev (make-base-eval '(begin (require actor))))
 
@@ -41,13 +43,18 @@ Abstractions''@cite{Flatt04} paper.
 
   Defines a procedure named @racket[id] that returns an instance of an
   actor when applied. For each @racket[method-definition], defines a
-  procedure named @racket[method-id-evt] that sends the actor a message
-  to be handled by the body of that method and returns a synchronizable
-  event representing the result of executing the body. Additionally,
-  for each method, defines a @racket[method-id] procedure that composes
-  @racket[sync] with its associated @racket[method-id-evt] procedure,
-  for convenience. Finally, defines a procedure named @racket[id?] that
-  recognizes instances of the actor.
+  procedure named @racket[method-id-evt] that returns a synchronizable
+  event that, when selected for synchronization, sends the actor a
+  message to be handled by the body of that method and is replaced
+  by a synchronizable event that becomes ready for synchronization
+  when the message has been handled or an uncaught exception was
+  raised inside the handler. The synchronization result of the
+  event is the second value returned by the method handler, or the
+  uncaught exception, if any. Additionally, for each method, defines
+  a @racket[method-id] procedure that composes @racket[sync] with its
+  associated @racket[method-id-evt] procedure, for convenience. Finally,
+  defines a procedure named @racket[id?] that recognizes instances of
+  the actor.
 
   Each method takes as a first argument the current state, followed by
   any arguments sent by the sender, and must return two values: the next
@@ -168,8 +175,6 @@ Abstractions''@cite{Flatt04} paper.
     #:changed "0.2" @elem{Added support calling methods from other methods.}
   ]
 }
-
-@section{Reference}
 
 @defproc[(actor? [v any/c]) boolean?]{
   Returns @racket[#t] when @racket[v] is an actor.
