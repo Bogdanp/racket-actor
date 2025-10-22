@@ -45,12 +45,13 @@ Synchronization Abstractions''@cite{Flatt04} paper.
   actor when applied. For each @racket[method-definition], defines a
   procedure named @racket[method-id-evt] that returns a synchronizable
   event that, when selected for synchronization, sends the actor a
-  message to be handled by the body of that method and is replaced
-  by a synchronizable event that becomes ready for synchronization
-  when the message has been handled or an uncaught exception was
-  raised inside the handler. The synchronization result of the
-  event is the second value returned by the method handler, or the
-  uncaught exception, if any. Additionally, for each method, defines
+  message to be handled by the body of that method and is replaced by a
+  synchronizable event that becomes ready for synchronization when the
+  message has been handled or an uncaught exception was raised inside
+  the handler. The synchronization result of the event is the second
+  value returned by the method handler. When an uncaught exception is
+  raised in the handler, synchronizing on the event raises an exception
+  in the synchronizing thread. Additionally, for each method, defines
   a @racket[method-id] procedure that composes @racket[sync] with its
   associated @racket[method-id-evt] procedure, for convenience. Finally,
   defines a procedure named @racket[id?] that recognizes instances of

@@ -80,6 +80,9 @@
 (struct req (res res-ch nack-evt))
 (struct msg (id res-ch nack-evt args))
 
+(struct err (e))
+(struct ok (v))
+
 (define-logger actor)
 (struct actor-state (reqs state))
 
@@ -120,8 +123,10 @@
                       (define-values (next-st res)
                         (with-handlers ([exn:fail?
                                          (lambda (e)
-                                           (values st e))])
-                          (method-proc st id args)))
+                                           (values st (err e)))])
+                          (define-values (next-st res)
+                            (method-proc st id args))
+                          (values next-st (ok res))))
                       (define the-req
                         (req res res-ch nack-evt))
                       (struct-copy
@@ -172,10 +177,9 @@
        (replace-evt
         (channel-put-evt ch (msg id res-ch nack-evt args))
         (lambda (_) res-ch)))))
-   (lambda (res-or-exn)
-     (when (exn:fail? res-or-exn)
-       (raise res-or-exn))
-     res-or-exn)))
+   (match-lambda
+     [(err e) (raise e)]
+     [(ok v) v])))
 
 (define (actor-dead-evt a)
   (thread-dead-evt (actor-thd a)))

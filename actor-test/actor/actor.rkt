@@ -39,7 +39,7 @@
        (define t3 (get-token cache))
        (check-not-eq? t1 t3)))
 
-   (test-case "error"
+   (test-case "raise exception"
      (define-actor (bad)
        (define (get-foo _state)
          (error 'get-foo "failed")))
@@ -48,6 +48,14 @@
       #rx"get-foo: failed"
       (lambda ()
         (get-foo b))))
+
+   (test-case "return exception"
+     (define-actor (exceptional)
+       (define (get-exception state)
+         (values state (exn:fail "fail" (current-continuation-marks)))))
+     (define e (get-exception (exceptional)))
+     (check-pred exn:fail? e)
+     (check-equal? (exn-message e) "fail"))
 
    (test-case "backpressure"
      (define end-sema (make-semaphore))
@@ -103,7 +111,22 @@
          (if (zero? st)
              (values st 0)
              (step (sub1 st)))))
-     (check-equal? (step (countdown 5)) 0))))
+     (check-equal? (step (countdown 5)) 0))
+
+   (test-case "nack after message"
+     (define s1 (make-semaphore))
+     (define s2 (make-semaphore))
+     (define-actor (example)
+       (define (ping st)
+         (semaphore-post s1)
+         (semaphore-wait s2)
+         (values st "pong")))
+     (define res
+       (sync
+        (ping-evt (example))
+        (handle-evt s1 (λ (_) 'nack))))
+     (semaphore-post s2)
+     (check-equal? res 'nack))))
 
 (module+ test
   (require rackunit/text-ui)
