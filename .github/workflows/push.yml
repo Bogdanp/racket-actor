@@ -1,0 +1,19 @@
+name: CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        racket-version: ['8.17', '8.18', 'current']
+        racket-variant: ['CS']
+    name: Build & Test on Racket ${{ matrix.racket-version }} (${{ matrix.racket-variant }})
+    steps:
+      - uses: actions/checkout@master
+      - uses: Bogdanp/setup-racket@v1.14
+        with:
+          architecture: x64
+          variant: ${{ matrix.racket-variant }}
+          version: ${{ matrix.racket-version }}
+      - run: raco pkg install --batch --auto actor-lib/ actor-lint-lib/ actor-test/ actor/
+      - run: raco test actor-test/
