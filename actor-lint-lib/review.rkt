@@ -18,6 +18,10 @@
   (for ([arg-id-stx (in-list (syntax-e stx))])
     (track-binding #:check-usages? #t arg-id-stx)))
 
+(define-syntax-class arg
+  (pattern id:id)
+  (pattern [id:id _default:expr]))
+
 (define-syntax-class private-definition
   #:datum-literals (define/private)
   (pattern
@@ -28,8 +32,8 @@
      (id:id
       {~do (track-binding #'id)
            (push-scope)}
-      arg-id:id ...
-      {~do (track-args #'(arg-id ...))})
+      arg:arg ...
+      {~do (track-args #'(arg.id ...))})
      {~do (push-scope)}
      _body:expression ...+
      {~do (pop-scope)
